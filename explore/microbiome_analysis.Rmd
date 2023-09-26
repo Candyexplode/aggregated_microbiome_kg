@@ -1,0 +1,262 @@
+---
+title: "dissertation"
+author: '11147477'
+date: "2023-08-13"
+output: pdf_document
+---
+
+```{r}
+library(ggplot2)
+library(tidyr)
+library(dplyr)
+library(MASS)
+library(rockchalk)
+library(lmerTest)
+library(lme4)
+```
+
+```{r}
+subject_tax_clean <- read.csv("subject_tax_cleaned.csv")
+```
+
+```{r}
+# Define the formula for the multivariate regression
+formula <- as.formula(paste(paste(names(subject_tax_clean)[9:102], collapse = " + "), "~ Visit_number + Sex + Age + age_group + visit_stage + Diagnosis + (1|Subject_ID)"))
+
+# Perform the multivariate regression
+model_clean_lmm_1 <- lmer(formula, data = subject_tax_clean)
+
+# Print the summary of the regression model
+summary(model_clean_lmm_1)
+```
+
+```{r}
+str(tax_clean_long)
+```
+
+```{r}
+# Create interaction plots for Visit_number and Sex
+interaction.plot(x.factor = tax_clean_long$Visit_number, trace.factor = tax_clean_long$Diagnosis, response = tax_clean_long$Metaphlan2_Analysis)
+```
+
+```{r}
+# Define the formula for the multivariate regression
+formula <- as.formula(paste(paste(names(subject_tax_clean)[9:102], collapse = " + "), "~ visit_stage + Sex + age_group + Diagnosis + (1 + Visit_number|Subject_ID)"))
+
+# Perform the multivariate regression
+model_clean_lmm <- lmer(formula, data = subject_tax_clean)
+
+# Print the summary of the regression model
+summary(model_clean_lmm)
+```
+
+```{r}
+str(subject_tax_clean)
+```
+
+```{r}
+model_some_lmm <- lmer(c(g__Clostridium + g__Bifidobacterium + g__Escherichia + g__Dorea + g__Ruminococcus + g__Roseburia) ~ Diagnosis + Age + Sex + Visit_number + age_group + visit_stage + (1|Subject_ID), data = subject_tax_clean)
+
+summary(model_some_lmm)
+```
+
+```{r}
+model_specific_lmm <- lmer(g__Prevotella ~ Diagnosis + Age + Sex + Visit_number + age_group + visit_stage + (1|Subject_ID), data = subject_tax_clean)
+
+summary(model_specific_lmm)
+```
+
+```{r}
+model_some_lr <- lm(c(g__Clostridium + g__Bifidobacterium + g__Escherichia + g__Dorea + g__Ruminococcus + g__Roseburia) ~ Diagnosis + Age + Sex + Visit_number + age_group + visit_stage, data = subject_tax_clean)
+
+summary(model_some_lr)
+```
+
+```{r}
+
+```
+
+```{r}
+tax_clean_long <- read.csv("tax_clean_long.csv")
+```
+
+```{r}
+summary(tax_clean_long)
+```
+
+```{r}
+# Define the formula for the multivariate regression
+formula <- as.formula("Metaphlan2_Analysis ~ Visit_number + Sex + Age + Diagnosis + (1|Subject_ID)")
+
+# Perform the multivariate regression
+model_clean_long <- lmer(formula, data = tax_clean_long)
+
+# Print the summary of the regression model
+summary(model_clean_long)
+```
+
+```{r}
+library(vegan)
+
+set.seed(18)
+
+# Prepare the data for PERMANOVA
+abundance_matrix <- subject_tax_clean[, 9:102]  # Assuming columns 8 and onwards are genera abundance values
+categorical_vars <- subject_tax_clean[, c("Visit_number", "Age", "Sex", "Diagnosis", "age_group", "visit_stage")]
+
+# Perform PERMANOVA
+permanova_result <- adonis2(abundance_matrix ~ ., data = categorical_vars, permutations = 999, by="margin")
+
+# Display the PERMANOVA results
+print(permanova_result)
+```
+
+```{r}
+# Standardize the data
+scaled_abundance_matrix <- scale(abundance_matrix)
+
+# Perform PCA
+pca_result <- prcomp(scaled_abundance_matrix)
+
+# Extract PCA scores (component values)
+pca_scores <- pca_result$x
+
+# Add PCA scores and categorical variables to a data frame
+pca_data <- data.frame(categorical_vars, pca_scores)
+
+# Create scatter plots of PCA scores
+ggplot(pca_data, aes(x = PC1, y = PC2, color = Diagnosis)) +
+  geom_point() +
+  labs(x = "Principal Component 1", y = "Principal Component 2", color = "Diagnosis") +
+  ggtitle("PCA Scatter Plot")
+```
+
+```{r}
+dim(abundance_matrix)
+```
+
+```{r}
+abun_dist <- vegdist(abundance_matrix, method="bray", binary=F)
+
+abun_pcoa <- cmdscale(abun_dist, k=3, eig=T)
+
+abun_pcoa_points <- as.data.frame(abun_pcoa$points)
+sum_eig <- sum(abun_pcoa$eig)
+eig_percent <- round(abun_pcoa$eig/sum_eig*100,1)
+
+colnames(abun_pcoa_points) <- paste0("PCoA", 1:3)
+
+abun_pcoa_result <- cbind(abun_pcoa_points, categorical_vars)
+
+head(abun_pcoa_result)
+```
+
+```{r}
+ggplot(abun_pcoa_result, aes(x=PCoA1, y=PCoA2, color=Diagnosis)) +
+  labs(x=paste("PCoA 1 (", eig_percent[1], "%)", sep=""),
+       y=paste("PCoA 2 (", eig_percent[2], "%)", sep="")) +
+  geom_point(size=4
+  ) + stat_ellipse(level=0.6) +
+  theme_classic()
+```
+
+```{r}
+library(ggalt)
+ggplot(abun_pcoa_result, aes(x=PCoA1, y=PCoA2, color=age_group, group = age_group)) +
+  labs(x=paste("PCoA 1 (", eig_percent[1], "%)", sep=""),
+       y=paste("PCoA 2 (", eig_percent[2], "%)", sep="")) +
+  geom_point(size=5) + 
+  geom_encircle(aes(fill=age_group), alpha = 0.1, show.legend = F) +
+  theme_classic() + coord_fixed(1)
+```
+
+```{r}
+# Perform PERMANOVA
+permanova_result_d <- adonis2(abundance_matrix ~ Diagnosis + Sex + age_group + visit_stage + Age + Visit_number, data = categorical_vars, permutations = 999)
+
+# Display the PERMANOVA results
+print(permanova_result_d)
+```
+
+```{r}
+# Perform PERMANOVA
+permanova_result_d <- adonis2(abundance_matrix ~ Diagnosis + Sex + age_group + visit_stage, data = categorical_vars, permutations = 999, by="margin", strata = categorical_vars$Subject_ID)
+
+# Display the PERMANOVA results
+print(permanova_result_d)
+```
+
+```{r}
+# Perform PERMANOVA
+permanova_result_un <- adonis2(abundance_matrix ~ Diagnosis + Sex + Age + Visit_number, data = categorical_vars, permutations = 999, by="margin")
+
+# Display the PERMANOVA results
+print(permanova_result_un)
+```
+
+```{r}
+# Perform PERMANOVA
+permanova_result_d <- adonis2(abundance_matrix ~ visit_stage, data = categorical_vars, permutations = 999)
+
+# Display the PERMANOVA results
+print(permanova_result_d)
+```
+
+```{r}
+dispersion <- betadisper(abun_dist, group=categorical_vars$visit_stage)
+permutest(dispersion)
+```
+
+```{r}
+plot(dispersion, hull=FALSE, ellipse=TRUE) ##sd ellipse
+```
+
+```{r}
+# Prepare the data for PERMANOVA
+abundance_matrix <- subject_tax_clean[, 9:102]
+categorical_vars <- subject_tax_clean[, c("Visit_number", "Age", "Sex", "Diagnosis", "Subject_ID", "age_group", "visit_stage")]
+
+# Perform PERMANOVA with inter-individual variability as a random effect
+permanova_result <- adonis2(abundance_matrix ~ ., data = categorical_vars, permutations = 999, by = "margin", strata = categorical_vars$Subject_ID)
+
+# Display the PERMANOVA results
+print(permanova_result)
+```
+
+```{r}
+library(compositions)
+
+# CLR transformation
+clr_data <- clr(abundance_matrix)
+
+# Perform the multivariate regression
+model_clean_clr <- lmer(clr_data[, "g__Roseburia"] ~ visit_stage + Sex + age_group + Diagnosis + (1|Subject_ID), data = subject_tax_clean)
+
+# Print the summary of the regression model
+summary(model_clean_clr)
+```
+
+```{r}
+# CLR transformation
+combined_data <- cbind(clr_data, categorical_vars)
+
+model_some_lmm_clr <- lmer(c(g__Clostridium + g__Bifidobacterium + g__Escherichia + g__Dorea + g__Ruminococcus + g__Roseburia) ~ Diagnosis + Age + Sex + Visit_number + age_group + visit_stage + (1|Subject_ID), data = combined_data)
+
+summary(model_some_lmm_clr)
+```
+
+```{r}
+model_specific_lmm_clr <- lmer(g__Prevotella ~ Diagnosis + Age + Sex + Visit_number + age_group + visit_stage + (1|Subject_ID), data = combined_data)
+
+summary(model_specific_lmm_clr)
+```
+
+```{r}
+
+```
+
+```{r}
+
+```
+
+
